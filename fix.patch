@@ -1,0 +1,26 @@
+--- a/src/impl/dtlstransport.cpp
++++ b/src/impl/dtlstransport.cpp
+@@ -856,9 +856,11 @@
+ 
+ void DtlsTransport::start() {
+ 	PLOG_DEBUG << "Starting DTLS transport";
+-	registerIncoming();
+-	changeState(State::Connecting);
+ 
++	// Set the MTU and initiate the handshake before registering for incoming datagrams. Otherwise a
++	// ClientHello arriving in between reaches doRecv() first: OpenSSL then writes the ServerHello with
++	// MTU 0 and fails silently (SSL_ERROR_SYSCALL, "fatal I/O error"), and processing it there would hold
++	// mSslMutex while this thread (possibly the libjuice poll thread) waits for it below.
+ 	int ret, err;
+ 	{
+ 		std::lock_guard lock(mSslMutex);
+@@ -871,6 +873,9 @@
+ 		ret = SSL_do_handshake(mSsl);
+ 		err = SSL_get_error(mSsl, ret);
+ 	}
++
++	registerIncoming();
++	changeState(State::Connecting);
+ 
+ 	openssl::check_error(err, "Handshake failed");
+ 
