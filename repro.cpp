@@ -1,6 +1,6 @@
 // Opens and closes WebRTC data channel connections between two PeerConnections in this process, over
 // loopback, until one fails with "DTLS recv: Handshake failed: fatal I/O error". Prints that failure.
-// Same as repro.mjs, but on libdatachannel directly.
+// Uses libdatachannel directly, with no bindings.
 //
 //   ./repro [concurrency=20]
 #include <openssl/crypto.h>

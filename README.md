@@ -13,7 +13,11 @@ DtlsTransport::doRecv@1029: DTLS handshake failed
 
 ## Reproduce
 
+Clone this repo and build and run the repro in Docker (the first build takes a few minutes, since it compiles libdatachannel):
+
 ```sh
+git clone https://github.com/BlairCurrey/libdatachannel-dtls-mtu-race
+cd libdatachannel-dtls-mtu-race
 docker build -t dtls-repro . && docker run --rm dtls-repro
 ```
 
@@ -35,7 +39,7 @@ libdatachannel errors:
   error: rtc::impl::DtlsTransport::doRecv@1029: DTLS handshake failed
 ```
 
-The answerer uses ICE UDP mux on one port, like a server would. With node-datachannel, the mux mattered: without it, none failed in 12,000 connections. In this C++ repro it makes no clear difference: without the mux, 4 of 4 runs still failed, after 2,500 to 51,500 connections.
+The answerer uses ICE UDP mux on one port, like a server would, but the mux isn't needed: without it, 4 of 4 runs still failed, after 2,500 to 51,500 connections.
 
 Without Docker, you need CMake 3.24+, a C++17 compiler and OpenSSL (on macOS, add `-DOPENSSL_ROOT_DIR=$(brew --prefix openssl@3)`):
 
@@ -54,8 +58,6 @@ docker build -t dtls-repro-fixed --build-arg WIDEN_WINDOW=ON --build-arg FIX=ON 
 
 The fixed build runs until you stop it with Ctrl-C.
 
-[`repro.mjs`](repro.mjs) is the original test, through [node-datachannel](https://github.com/murat-dogan/node-datachannel) 0.33.6 (which bundles libdatachannel 0.24.6), if you'd rather not compile: `npm install && node repro.mjs`. In four Docker runs it failed after 26 s to 11 min.
-
 ## What happens
 
 1. The offerer offers `actpass`, and libdatachannel answers `active`, so the offerer is the DTLS server.
@@ -67,7 +69,7 @@ When I instrumented a failure, it showed one 215-byte ClientHello in, `ret=-1 er
 
 ## Fix
 
-[`fix.patch`](fix.patch) moves `registerIncoming()` and `changeState(Connecting)` below the block that sets the MTU and runs the first `SSL_do_handshake()`. A ClientHello that arrives early is still buffered by #1554, so it gets handled right after, now with the MTU set.
+[`fix.patch`](fix.patch) is the proposed fix: a small patch to `src/impl/dtlstransport.cpp` that applies to v0.24.6 and master. It moves `registerIncoming()` and `changeState(Connecting)` below the block that sets the MTU and runs the first `SSL_do_handshake()`. A ClientHello that arrives early is still buffered by #1554, so it gets handled right after, now with the MTU set.
 
 Moving only `SSL_set_mtu()` above `registerIncoming()` also stops the failures. But then `doRecv()` can hold `mSslMutex` while it sends the server flight, while `start()` waits for that lock on the libjuice thread. That looks like the lock-order hazard the comment in `start()` warns about.
 
