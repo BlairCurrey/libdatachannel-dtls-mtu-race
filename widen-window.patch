@@ -8,11 +8,7 @@
  #include <cstring>
  #include <exception>
  
-@@ -858,6 +859,7 @@
- 	PLOG_DEBUG << "Starting DTLS transport";
- 	registerIncoming();
- 	changeState(State::Connecting);
-+	std::this_thread::sleep_for(std::chrono::milliseconds(2)); // widen the window (demonstration only)
- 
+@@ -862,2 +863,3 @@
  	int ret, err;
++	std::this_thread::sleep_for(std::chrono::milliseconds(2)); // widen the window (demonstration only)
  	{
